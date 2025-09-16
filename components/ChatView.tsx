@@ -61,7 +61,8 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
             <div className={`w-full max-w-xl p-4 rounded-xl ${isUser ? 'bg-blue-500 text-white order-1' : 'bg-white dark:bg-gray-700'}`}>
                 {message.parts.map((part, index) => {
                     if (part.text) {
-                        return <p key={index} className="whitespace-pre-wrap">{part.text}</p>;
+                        // Use whitespace-pre-line to respect newlines and wrap text
+                        return <p key={index} className="whitespace-pre-line">{part.text}</p>;
                     }
                     if (part.inlineData) {
                         if (part.inlineData.mimeType.startsWith('image/')) {
@@ -84,6 +85,9 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
     );
 };
 
+// Vercel injects environment variables here
+const API_KEY = process.env.API_KEY;
+
 export default function ChatView({ chatbotId, onBack }: { chatbotId: string, onBack: () => void }) {
     const [chatbots, setChatbots] = useLocalStorage<Chatbot[]>('chatbots', []);
     const chatbot = chatbots.find(c => c.id === chatbotId);
@@ -94,6 +98,7 @@ export default function ChatView({ chatbotId, onBack }: { chatbotId: string, onB
     const [isLoading, setIsLoading] = useState(false);
     const [attachment, setAttachment] = useState<Attachment | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const chatSession = useRef<Chat | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -107,7 +112,13 @@ export default function ChatView({ chatbotId, onBack }: { chatbotId: string, onB
     useEffect(scrollToBottom, [messages]);
 
     const initOrLoadConversation = useCallback((conversation: Conversation | undefined) => {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+        if (!API_KEY) {
+            setError("A chave da API não foi configurada. Configure a variável de ambiente API_KEY.");
+            return;
+        }
+        setError(null);
+        
+        const ai = new GoogleGenAI({ apiKey: API_KEY });
         
         const systemInstruction = `
 ### PERSONA ###
@@ -207,6 +218,11 @@ ${chatbot?.output}
 
     const handleSend = async () => {
         if ((!inputValue.trim() && !attachment) || isLoading) return;
+        
+        if (error) {
+            alert(error);
+            return;
+        }
 
         const userParts: MessagePart[] = [];
         if (attachment) {
@@ -223,14 +239,15 @@ ${chatbot?.output}
             timestamp: new Date().toISOString(),
         };
 
-        setMessages(prev => [...prev, userMessage]);
+        const currentMessages = [...messages, userMessage];
+        setMessages(currentMessages);
         setInputValue('');
         setAttachment(null);
         setIsLoading(true);
 
         const modelMessageId = `msg_${Date.now() + 1}`;
         // Add a placeholder for the bot's response
-        setMessages(prev => [...prev, { id: modelMessageId, role: 'model', parts: [{ text: '...' }], timestamp: new Date().toISOString() }]);
+        setMessages(prev => [...prev, { id: modelMessageId, role: 'model', parts: [{ text: '' }], timestamp: new Date().toISOString() }]);
 
         try {
             if (!chatSession.current) throw new Error('Chat session not initialized.');
@@ -247,19 +264,19 @@ ${chatbot?.output}
                 );
             }
             
-             setMessages(prev =>
-                prev.map(m =>
-                    m.id === modelMessageId ? { ...m, parts: [{ text: fullResponse.trim() }], timestamp: new Date().toISOString() } : m
-                )
-            );
-
-
             const finalModelMessage: Message = {
                 id: modelMessageId,
                 role: 'model',
                 parts: [{ text: fullResponse.trim() }],
                 timestamp: new Date().toISOString()
             };
+
+             setMessages(prev =>
+                prev.map(m =>
+                    m.id === modelMessageId ? finalModelMessage : m
+                )
+            );
+
 
             setChatbots(prev =>
                 prev.map(c =>
@@ -268,7 +285,7 @@ ${chatbot?.output}
                             ...c,
                             conversations: c.conversations.map(convo =>
                                 convo.id === activeConversationId
-                                    ? { ...convo, messages: [...messages, userMessage, finalModelMessage] }
+                                    ? { ...convo, messages: [...currentMessages, finalModelMessage] }
                                     : convo
                             ),
                         }
@@ -406,6 +423,7 @@ ${chatbot?.output}
                 </header>
                 <div className="flex-1 p-6 overflow-y-auto">
                     <div className="max-w-4xl mx-auto space-y-6">
+                        {error && <div className="p-4 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg">{error}</div>}
                         <AnimatePresence initial={false}>
                             {messages.map((msg) => (
                                 <motion.div
