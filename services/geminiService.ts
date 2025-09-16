@@ -4,6 +4,8 @@ import { Chatbot, ChatMessage } from '../types';
 // Per user request, this service is being updated to use the OpenAI API instead of Gemini.
 // The filename is kept as `geminiService.ts` to minimize changes required in other parts of the application.
 
+const CONTEXT_MESSAGE_LIMIT = 10; // The number of recent messages to send as context to the AI.
+
 function buildSystemInstruction(bot: Chatbot): string {
     return `
       **Persona:**
@@ -49,7 +51,10 @@ export const getChatResponse = async (bot: Chatbot, history: ChatMessage[], newM
         !(index === 0 && msg.role === 'model' && msg.text === bot.initialMessage)
     );
 
-    const fullHistory = [...conversationHistory, newMessage];
+    // Truncate history to the last N messages to prevent context overflow errors.
+    const truncatedHistory = conversationHistory.slice(-CONTEXT_MESSAGE_LIMIT);
+
+    const fullHistory = [...truncatedHistory, newMessage];
 
     const mappedMessages = fullHistory.map((msg): OpenAIMessage => {
         const role = msg.role === 'model' ? 'assistant' : 'user';
