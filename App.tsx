@@ -217,7 +217,7 @@ export default function App() {
 
             <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
                 <div>
-                    <h1 className="text-4xl font-bold text-gray-800 dark:text-white">Fábrica de Chatbots de IA</h1>
+                    <h1 className="text-4xl font-bold text-gray-800 dark:text-white">Fábrica de Bots DPI</h1>
                     <p className="mt-1 text-gray-500 dark:text-gray-400">Seu centro de comando pessoal para criar assistentes de IA.</p>
                 </div>
                 <button

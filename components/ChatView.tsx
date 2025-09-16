@@ -36,6 +36,12 @@ const BotIcon: React.FC<{ className?: string }> = ({ className }) => (
 const DocumentTextIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className || "w-6 h-6"}><path fillRule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a.375.375 0 01-.375-.375V6.75A3.75 3.75 0 009 3H5.625zM12.75 12.75a.75.75 0 000-1.5h-3a.75.75 0 000 1.5h3zM11.25 15a.75.75 0 01.75-.75h3a.75.75 0 010 1.5h-3a.75.75 0 01-.75-.75zM12 9.75a.75.75 0 000-1.5h-3a.75.75 0 000 1.5h3z" clipRule="evenodd" /><path d="M14.25 7.5a.75.75 0 00-.75.75v1.5a.75.75 0 00.75.75h1.5a.75.75 0 00.75-.75V9a.75.75 0 00-.75-.75h-1.5z" /><path d="M15 3.75a2.25 2.25 0 012.25 2.25v1.5a2.25 2.25 0 01-2.25 2.25h-1.5a2.25 2.25 0 01-2.25-2.25v-1.5A2.25 2.25 0 0113.5 3h1.5a.75.75 0 01.75.75z" /></svg>
 );
+const Bars3Icon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className || "w-6 h-6"}><path fillRule="evenodd" d="M3 6.75A.75.75 0 013.75 6h16.5a.75.75 0 010 1.5H3.75A.75.75 0 013 6.75zM3 12a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75A.75.75 0 013 12zm0 5.25a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z" clipRule="evenodd" /></svg>
+);
+const XMarkIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className || "w-6 h-6"}><path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>
+);
 
 
 interface Attachment {
@@ -87,6 +93,7 @@ export default function ChatView({ chatbotId, onBack }: { chatbotId: string, onB
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [attachment, setAttachment] = useState<Attachment | null>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const chatSession = useRef<Chat | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -193,6 +200,7 @@ ${chatbot?.output}
         if(conversation){
             setActiveConversationId(conversation.id);
             initOrLoadConversation(conversation);
+            setIsSidebarOpen(false);
         }
     };
 
@@ -344,14 +352,31 @@ ${chatbot?.output}
     }
     
     return (
-        <div className="flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        <div className="flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-hidden">
+            <AnimatePresence>
+                {isSidebarOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 z-30 md:hidden"
+                        onClick={() => setIsSidebarOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
+            
             {/* Sidebar */}
-            <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
-                    <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 mr-2">
-                        <ArrowLeftIcon className="w-5 h-5" />
+            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <div className="flex items-center overflow-hidden">
+                        <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 mr-2 hidden md:flex">
+                            <ArrowLeftIcon className="w-5 h-5" />
+                        </button>
+                        <h2 className="font-bold text-lg truncate">{chatbot.name}</h2>
+                    </div>
+                    <button onClick={() => setIsSidebarOpen(false)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 md:hidden ml-2">
+                        <XMarkIcon className="w-5 h-5" />
                     </button>
-                    <h2 className="font-bold text-lg truncate">{chatbot.name}</h2>
                 </div>
                 <div className="p-2">
                     <button onClick={handleNewConversation} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-brand-secondary hover:bg-brand-primary rounded-md">
@@ -370,6 +395,15 @@ ${chatbot?.output}
     
             {/* Main Chat Area */}
             <main className="flex-1 flex flex-col">
+                <header className="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between md:hidden">
+                    <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 -ml-2">
+                        <ArrowLeftIcon className="w-5 h-5" />
+                    </button>
+                    <h2 className="font-bold text-lg truncate mx-2">{chatbot.name}</h2>
+                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 -mr-2">
+                        <Bars3Icon className="w-5 h-5" />
+                    </button>
+                </header>
                 <div className="flex-1 p-6 overflow-y-auto">
                     <div className="max-w-4xl mx-auto space-y-6">
                         <AnimatePresence initial={false}>

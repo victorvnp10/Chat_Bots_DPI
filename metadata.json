@@ -1,5 +1,5 @@
 {
-  "name": "Fábrica de Chatbots de IA",
+  "name": "Fábrica de Bots DPI",
   "description": "Crie, configure e gerencie múltiplos chatbots de IA personalizados com a tecnologia Gemini. Salve suas conversas e continue-as a qualquer momento, com suporte para upload de texto e imagens.",
   "requestFramePermissions": [
     "camera"
