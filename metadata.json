@@ -1,7 +1,5 @@
 {
-  "name": "Fábrica de Bots DPI",
-  "description": "Crie, configure e gerencie múltiplos chatbots de IA personalizados com a tecnologia Gemini. Salve suas conversas e continue-as a qualquer momento, com suporte para upload de texto e imagens.",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "name": "Google App Script AI Chatbot Builder",
+  "description": "An application to create, configure, and interact with multiple AI-powered chatbots. Users can define chatbot personas, tasks, and instructions, and engage in conversations with file attachment support.",
+  "requestFramePermissions": []
 }

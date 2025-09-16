@@ -1,25 +1,24 @@
 
-export type Role = 'user' | 'model';
-
-export interface MessagePart {
-  text?: string;
-  inlineData?: {
-    mimeType: string;
-    data: string; // base64
-  };
+export interface AttachedFile {
+  name: string;
+  type: string;
+  size: number;
+  base64: string;
 }
 
-export interface Message {
+export interface ChatMessage {
   id: string;
-  role: Role;
-  parts: MessagePart[];
+  role: 'user' | 'model';
+  text: string;
+  files?: AttachedFile[];
   timestamp: string;
 }
 
 export interface Conversation {
   id: string;
-  messages: Message[];
-  createdAt: string;
+  title: string;
+  messages: ChatMessage[];
+  lastUpdated: string;
 }
 
 export interface Chatbot {
@@ -28,11 +27,9 @@ export interface Chatbot {
   persona: string;
   task: string;
   instruction: string;
-  output: string;
+  outputFormat: string;
   initialMessage: string;
   model: string;
   conversations: Conversation[];
   createdAt: string;
 }
-
-export const AVAILABLE_MODELS = ['gemini-2.5-flash'];
