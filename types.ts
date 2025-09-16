@@ -1,9 +1,9 @@
-
 export interface AttachedFile {
   name: string;
   type: string;
   size: number;
   base64: string;
+  textContent?: string;
 }
 
 export interface ChatMessage {

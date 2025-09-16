@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useChatbots } from '../contexts/ChatbotContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { ChatMessage, Conversation, AttachedFile } from '../types';
 import { getChatResponse } from '../services/geminiService';
 import { PlusIcon } from '../components/icons/PlusIcon';
@@ -11,10 +12,13 @@ import { BotIcon } from '../components/icons/BotIcon';
 import { TrashIcon } from '../components/icons/TrashIcon';
 import { XIcon } from '../components/icons/XIcon';
 
+declare const pdfjsLib: any;
+
 const ChatPage: React.FC = () => {
   const { botId, conversationId } = useParams<{ botId: string; conversationId?: string }>();
   const navigate = useNavigate();
   const { getBot, addConversation, updateConversation, getConversation, deleteConversation } = useChatbots();
+  const { apiKey } = useSettings();
 
   const [bot, setBot] = useState(getBot(botId || ''));
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
@@ -22,9 +26,16 @@ const ChatPage: React.FC = () => {
   const [userInput, setUserInput] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+    }
+  }, []);
 
   useEffect(() => {
     const loadedBot = getBot(botId || '');
@@ -60,6 +71,7 @@ const ChatPage: React.FC = () => {
         setMessages([initialMessage]);
       }
     }
+    setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId, conversationId, navigate]);
 
@@ -79,22 +91,52 @@ const ChatPage: React.FC = () => {
       const files = Array.from(event.target.files);
       const filePromises = files.map(file => {
         return new Promise<AttachedFile>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            resolve({
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              base64: e.target?.result as string,
-            });
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
+          if (file.type === 'application/pdf') {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+              try {
+                const arrayBuffer = e.target?.result as ArrayBuffer;
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                  const page = await pdf.getPage(i);
+                  const textContent = await page.getTextContent();
+                  fullText += textContent.items.map((item: any) => item.str).join(' ');
+                  fullText += '\n'; // Add a newline between pages
+                }
+                resolve({ name: file.name, type: file.type, size: file.size, base64: '', textContent: fullText.trim() });
+              } catch (error) {
+                console.error("Error parsing PDF: ", error);
+                reject(new Error("Could not read the PDF file."));
+              }
+            };
+            reader.onerror = (err) => reject(err);
+            reader.readAsArrayBuffer(file);
+          } else if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve({ name: file.name, type: file.type, size: file.size, base64: e.target?.result as string });
+            reader.onerror = (err) => reject(err);
+            reader.readAsDataURL(file);
+          } else if (file.type.startsWith('text/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve({ name: file.name, type: file.type, size: file.size, base64: '', textContent: e.target?.result as string });
+            reader.onerror = (err) => reject(err);
+            reader.readAsText(file);
+          } else {
+            // Unsupported file type
+            resolve({ name: file.name, type: file.type, size: file.size, base64: '', textContent: `[Unsupported file type: ${file.type}]` });
+          }
         });
       });
       Promise.all(filePromises).then(newFiles => {
         setAttachedFiles(prev => [...prev, ...newFiles]);
+      }).catch(error => {
+        console.error("Error processing files:", error);
+        // You might want to show an alert to the user here
       });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
   
@@ -106,6 +148,12 @@ const ChatPage: React.FC = () => {
     e.preventDefault();
     if (!userInput.trim() && attachedFiles.length === 0) return;
     if (!bot || !currentConversation) return;
+
+    if (!apiKey || !apiKey.startsWith('sk-')) {
+        setError("OpenAI API key is missing or invalid. Please set it in the settings (gear icon in the top right).");
+        return;
+    }
+    setError(null);
 
     setIsLoading(true);
 
@@ -122,7 +170,7 @@ const ChatPage: React.FC = () => {
     setUserInput('');
     setAttachedFiles([]);
     
-    const responseText = await getChatResponse(bot, messages, userMessage);
+    const responseText = await getChatResponse(bot, messages, userMessage, apiKey);
     
     const modelMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -153,7 +201,7 @@ const ChatPage: React.FC = () => {
           {bot.conversations.map(conv => (
             <div key={conv.id} className={`group flex justify-between items-center p-2 rounded-md mb-1 ${conv.id === conversationId ? 'bg-brand-secondary' : 'hover:bg-brand-secondary/50'}`}>
               <Link to={`/chat/${bot.id}/${conv.id}`} className="block w-full text-sm truncate">{conv.title}</Link>
-               <button onClick={(e) => { e.stopPropagation(); deleteConversation(bot.id, conv.id); navigate(`/chat/${bot.id}`);}} className="text-brand-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+               <button onClick={(e) => { e.stopPropagation(); if (window.confirm("Are you sure you want to delete this chat?")) { deleteConversation(bot.id, conv.id); navigate(`/chat/${bot.id}`); } }} className="text-brand-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   <TrashIcon className="w-4 h-4"/>
               </button>
             </div>
@@ -194,6 +242,11 @@ const ChatPage: React.FC = () => {
 
         {/* Input Area */}
         <div className="mt-auto bg-brand-bg pt-2">
+            {error && (
+                <div className="p-3 mb-2 bg-red-900/50 text-red-300 border border-red-700 rounded-lg text-sm">
+                    {error}
+                </div>
+            )}
             {attachedFiles.length > 0 && (
                  <div className="p-2 mb-2 bg-brand-surface rounded-lg flex flex-wrap gap-2">
                     {attachedFiles.map(file => (
@@ -208,7 +261,7 @@ const ChatPage: React.FC = () => {
               <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-brand-text-secondary hover:text-brand-primary">
                 <PaperclipIcon className="w-6 h-6" />
               </button>
-              <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,text/plain,.pdf" />
+              <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,text/plain,application/pdf" />
               <textarea
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
